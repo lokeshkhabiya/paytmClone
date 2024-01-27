@@ -2,6 +2,7 @@ const {authMiddleware} = require('../middleware');
 const express = require('express');
 const zod = require('zod');
 const {User} = require('../db');
+const bcrypt = require('bcrypt');
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = require('../config');
 const router = express.Router();
@@ -32,9 +33,11 @@ router.post('/signup', async (req, res) => {
         })
     }
 
+    const hashedPassword = await bcrypt.hash(req.body.password, 10); 
+
     const user = await User.create({
         username: req.body.username,
-        password: req.body.password,
+        password: hashedPassword,
         firstName: req.body.firstName,
         lastName: req.body.lastName,
     })
@@ -66,18 +69,20 @@ router.post("/signin", async (req, res) => {
 
     const user = await User.findOne({
         username: req.body.username,
-        password: req.body.password
     });
 
     if (user) {
-        const token = jwt.sign({
-            userId: user._id
-        }, JWT_SECRET);
-
-        res.json({
-            token: token
-        })
-        return;
+        const passwordMatch = await bcrypt.compare(req.body.password, user.password);
+        if (passwordMatch) {
+            const token = jwt.sign({
+                userId: user._id
+            }, JWT_SECRET);
+            
+            res.json({
+                token: token
+            })
+            return;
+        }
     }
 
     res.status(411).json({
